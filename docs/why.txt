@@ -1,0 +1,15 @@
+Why
+===
+
+Pure bloody laziness.
+
+The idea behind this stupid waste of time is to take
+an RelaxNG definition of data and create HTML forms
+to serve using some local server like Bottle or something.
+
+This is, in theory, easy to do with XSLT.
+
+Then the server has to handle the data from the
+form, turn it into some sort of XML document, and send the results
+back to the web page.
+

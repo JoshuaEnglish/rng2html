@@ -1,0 +1,29 @@
+Bottle v0.12.13 server starting up (using WSGIRefServer())...
+Listening on http://localhost:8080/
+Hit Ctrl-C to quit.
+
+127.0.0.1 - - [22/Apr/2017 18:16:23] "HEAD / HTTP/1.1" 200 0
+127.0.0.1 - - [22/Apr/2017 18:16:27] "GET / HTTP/1.1" 200 3335
+----------------------------------------
+Exception happened during processing of request from ('127.0.0.1', 64811)
+Traceback (most recent call last):
+  File "C:\Users\Josh\AppData\Local\Programs\Python\Python36\lib\socketserver.py", line 317, in _handle_request_noblock
+    self.process_request(request, client_address)
+  File "C:\Users\Josh\AppData\Local\Programs\Python\Python36\lib\socketserver.py", line 348, in process_request
+    self.finish_request(request, client_address)
+  File "C:\Users\Josh\AppData\Local\Programs\Python\Python36\lib\socketserver.py", line 361, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "C:\Users\Josh\AppData\Local\Programs\Python\Python36\lib\socketserver.py", line 696, in __init__
+    self.handle()
+  File "C:\Users\Josh\AppData\Local\Programs\Python\Python36\lib\wsgiref\simple_server.py", line 118, in handle
+    self.raw_requestline = self.rfile.readline(65537)
+  File "C:\Users\Josh\AppData\Local\Programs\Python\Python36\lib\socket.py", line 586, in readinto
+    return self._sock.recv_into(b)
+ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host
+----------------------------------------
+Starting server
+checking...
+Starting client
+Closed client
+shutting down the web server
+Closed server
