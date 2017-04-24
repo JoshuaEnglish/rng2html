@@ -5,9 +5,21 @@
 </header>
 <div class="w3-container w3-padding-32" style="padding-left:32px">
 
-<h2>What is this?</h2>
+<h2>Hard Coded Address Book</h2>
 
-<p>This is a test</p>
+<div class="w3-container">
+
+<div class="w3-card">
+<p>John Smith</p>
+</p>js@example.com</p>
+</div>
+
+<div class="w3-card">
+<p>Fred Bloggs</p>
+</p>fb@example.net</p>
+</div>
+
+</div>
 
 
 </div>

@@ -12,6 +12,7 @@ Welcome to rng2html's documentation!
 
    why
    simpleapp
+   simpleapp2
 
 Indices and tables
 ==================

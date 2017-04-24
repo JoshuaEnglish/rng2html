@@ -1,0 +1,344 @@
+=======================================
+Building the next iteration
+=======================================
+
+The ``simpleapp2`` folder is a copy of ``simpleapp`` in the
+examples folder.
+
+The hubris here is to make future coding easier I've moved the 
+Utils class and object and the routes to a new file, called
+(unimaginitavely) ``routes.py``. 
+
+I've added the ``db.py`` file to serve as the database interface.
+
+I've added the ``data`` and ``rng`` folders to store the actual
+data and the RelaxNG definitions.
+
+In a previous version of this, I used lxml.objectify to create
+Python objects that I could interface with easily. I'm going to
+try to not do that this time around.
+
+Since I want to use XSLT to take the RNG to build the form, I
+don't need to use Bottle's templates to create the forms. I can 
+either serve the raw html to bottle to include in the template,
+or I can generate a template once and include that in the
+normal templating engine. 
+
+Templates would only have to be changed if the RelaxNG specification
+changes.
+
+I'm starting with the address book example from the RelaxNG tutorial:
+
+.. code:: xml
+
+    <?xml version="1.0" ?>
+    <element name="addressBook" xmlns="http://relaxng.org/ns/structure/1.0">
+      <zeroOrMore>
+        <element name="card">
+          <element name="name">
+            <text/>
+          </element>
+          <element name="email">
+            <text/>
+          </element>
+        </element>
+      </zeroOrMore>
+    </element>
+
+    
+Displaying the Address Book
+===========================
+
+This is the address book xml from the tutorial:
+
+.. code:: xml
+
+    <addressBook>
+      <card>
+        <name>John Smith</name>
+        <email>js@example.com</email>
+      </card>
+      <card>
+        <name>Fred Bloggs</name>
+        <email>fb@example.net</email>
+      </card>
+    </addressBook>
+    
+To display this on the page I would have HTML like this:
+
+.. code:: html
+    
+    <div class="w3-container">
+
+    <div class="w3-card">
+    <p>John Smith</p>
+    </p>js@example.com</p>
+    </div>
+
+    <div class="w3-card">
+    <p>Fred Bloggs</p>
+    </p>fb@example.net</p>
+    </div>
+
+    </div>
+    
+This is the code on the ``hardcoded`` template.
+
+I think at this point it would be easier to generate the Bottle template
+in XSLT instead of the full object. The reason being that Bottle's template
+can manage creating all the cards in a simple loop.
+
+I can pass a list of dictionaries representing the addresses. I will
+generate the list using the ``get_addresses`` method of the ``db.py`` file:
+
+.. code:: python
+
+    def get_addresses():
+        """Return a list of dictionaries"""
+        doc = etree.parse(os.path.join(input_dir, "addressbook.xml"))
+        res = []
+        for card in doc.iter('card'):
+            res.append({'name': card.findtext('name'),
+                        'email': card.findtext('email')
+                        })
+        return res
+
+The template should look like this:
+
+.. code:: html
+
+    <div class="w3-container">
+
+    % for card in addresses:
+    <div class="w3-card">
+    <p>{{card['name']}}</p>
+    </p>{{card['email']}}</p>
+    </div>
+    % end 
+
+    </div>
+
+This is easily hand coded and the first point of laziness. I want
+to generate this file from the RelaxNG.
+
+For now I'm going to generate the ``addresses.tpl`` file every time I run
+the program. To review the files:
+
+- simpleapp.py creates the web server and the browser
+- routes.py defines the web server
+- db.py gives us access to the addresses
+- data/addressbook.xml is our actual data
+- rng/addressbook.rng is our definition
+
+I need a new top-level file to manage the XSLT information. There could be
+several transformations. The rng2template function needs to accept 
+an .rng file, transform it, and write the result to the correct file.
+
+
+The XSL should look like:
+
+.. code:: xml
+
+    <?xml version="1.0" ?>
+    <xsl:stylesheet version="1.0"
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    xmlns:rng="http://relaxng.org/ns/structure/1.0"
+    exclude-result-prefixes="rng">
+    <xsl:output method="html" indent="yes" />
+
+    <xsl:template match="/">
+      <div class="addressbook w3-container">
+      <h2>Addresses</h2>
+      <xsl:apply-templates />
+      </div>
+    </xsl:template>
+
+    <xsl:template match="rng:zeroOrMore">
+    % for card in addresses
+    <xsl:apply-templates />
+    % end
+    </xsl:template>
+
+    <xsl:template match="rng:element[@name='card']">
+    <div class="w3-card"><xsl:apply-templates/></div>
+    </xsl:template>
+
+    <xsl:template match="rng:element[@name='name']">
+    <p>{{card['name']}}</p>
+    </xsl:template>
+
+    <xsl:template match="rng:element[@name='email']">
+    <p>{{card['email']}}</p>
+    </xsl:template>
+
+    </xsl:stylesheet>
+
+This works but it is still created manually. 
+
+I am lazy. I want to feed the rng and get the template.
+
+Getting Lazy
+============
+
+So what I'm really looking for is something that generates XSLT code that
+can take the a specific rng and return a specific bottle template.
+
+I want a single function:
+
+.. code:: python
+    
+    def makeviewtemplate(rng_in, template_out):
+        """makeviewtemplate(in, out)
+        Transform an input file of RelaxNG into a bottle template
+        """
+        
+        ... work magic
+        
+Calling it ``makeviewtemplate`` will remind me that I'm writing a function
+to create a viewing template, not a creation input form (yet) or an 
+editing form (yet).
+
+In Python, I need to parse the rng input file. This can be turned into
+an RelaxNG validator (later) and can be transformed by XSLT.
+
+The top level element of the rng is an element named ``addressBook``.
+This is transformed into:
+        
+.. code:: xml
+    
+    <xsl:template match="/">
+      <div class="addressbook w3-container">
+      <h2>Addresses</h2>
+      <xsl:apply-templates />
+      </div>
+    </xsl:template>
+    
+
+I am parsing the rng using the ``etree.parse`` function:
+
+.. code:: python
+    
+    rngpath = os.path.join(os.getcwd(),'rng', 'addressbook.rng')
+
+    rng = etree.parse(rngpath)
+    
+This gives me an ElementTree instance, not a document. I need the tree
+to create the RNG and the XSLT parser also needs the tree. But for
+the introspection to the contents of the rng definition I need the 
+root element:
+
+.. code:: python
+    
+    doc = rng.getroot()
+    
+And I am dealing with namespaces so I'd better grab the default namespace.
+The ``doc.nsmap`` attribute is a dictionary with ``None`` as a key. XLST
+cannot handle this, so we need to create a new namespace map:
+
+    nsmap = {'rng': doc.nsmap[None]}
+    
+This is only handy if I'm making a function that builds the stylesheet.
+
+It may be possible to do this in xlst with a lot of extra work. For a while
+I thought I'd need two XSLT transformations, but I think I don't. I just
+need a really good XSLT to start with. However, I'm not that smart yet.
+
+I have an aborted attempt. It's tricky because the logic I'm working with
+needs more information about each element. So I'll make a maker function 
+for now.
+
+Actually, it's a class because of the recursive nature of tree parsing.
+
+.. code:: python
+
+    class XSLTViewMaker:
+        def __init__(self, rngTree):
+            self.tree = rngTree
+            self.doc = self.tree.getroot()
+            self.text = self.export()
+            
+        def export(self):
+        
+
+            res = [] # list of strings
+            res.append('''<?xml version="1.0" ?>
+            <xsl:stylesheet version="1.0"
+            xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+            xmlns:rng="http://relaxng.org/ns/structure/1.0"
+            exclude-result-prefixes="rng">
+            
+            <xsl:output method="html" indent="yes" />''')
+            
+            # manage top level element
+            res.append('''
+            <xsl:template match="/">
+                <div class="w3-container {}">
+                <xsl:apply-templates/>
+                </div>
+            </xsl:template>'''.format(self.doc.get('name')))
+            
+            for kiddo in self.doc.iterchildren():
+                res.extend(self.handle_child(kiddo))
+            
+            res.append('</xsl:stylesheet>')
+            return '\n'.join(res)
+            
+        def handle_child(self, node):
+            localname = node.tag.replace('{%s}' % node.nsmap[None], '')
+            funcname = 'do_%s' % localname
+            print('looking for %s with %s' % (localname, node.attrib))
+            if hasattr(self, funcname):
+                return getattr(self, funcname)(node)
+            return []
+            
+        def do_zeroOrMore(self, node):
+            res = ['<xsl:template match="rng:zeroOrMore">',]
+            for child in node.iterchildren():
+                thing = child.get('name')
+                stuff = node.getparent().get('name')
+                res.append('% for {} in {}'.format(thing, stuff)) 
+                res.append('<xsl:apply-templates/>')
+                res.append('% end')
+            res.append('</xsl:template>')
+            
+            for child in node.iterchildren():
+                res.extend(self.handle_child(child))
+                
+            return res
+
+        def do_element(self, node):
+            #etree.dump(node)
+            
+            
+            if len(node) > 1:
+                res = ['''<xsl:template match="rng:element[@name='{}']">'''.format(node.get('name'))]
+                res.append('<div class="w3-card">')
+                for child in node.iterchildren():
+                    res.extend(self.handle_child(child))
+                res.append('</div>')
+                res.append('</xsl:template>')
+            elif len(node) == 1:
+                res = []
+                res.append('<p>{{%s["%s"]}}</p>' % (node.getparent().get('name'), node.get('name')))
+                
+            
+            return res
+
+This also can get clunky and unwieldly as I move forward.
+
+This did work, though. Once I adjusted the template to use the same
+names as the code. The RNG model is called ``addressBook`` so I needed
+to pass that (instead of ``addresses``) to the templates.
+
+There's a lot of undocumented logic here. Sorry, future me.
+
+But the core concept seems to work: Use XSLT to transform the RNG into a
+template bottle can insert into another template.
+
+Now I can follow a similar pattern. I can set up rules: input_file, output_file,
+tool. I can run it from the ``templatemaker.py`` script as needed or call
+it from the main app and generate all my templates fresh every time.
+
+XSL may be powerful enough to pull this off on it's own. 
+
+
