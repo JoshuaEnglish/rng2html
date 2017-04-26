@@ -1,0 +1,173 @@
+==============================
+Building a better roadmap
+==============================
+
+I have a simple working prototype that creates Bottle templates from RelaxNG
+specifications.
+
+Before moving to the next step I want to make sure I understand all the things
+I really need to do.
+
+RelaxNG defines ``elements`` and ``attributes``. Everything else is 
+either a datatype or a grouping of ``elements``. 
+
+Groups can be **zeroOrMore**, **oneOrMore**, **optional**, in a **choice**,
+or referenced by name internally and externally.
+
+We can define the contents using datatypes, which can provide us more choices
+when creating the HTML forms down the road.
+
+RelaxNG can also define an element, or a grammar. A grammar element
+must have a single start element, which can be a reference or an element
+element.
+
+This is a hell of a lot more that I can do, and as no one else has done it,
+maybe I'm going about this the wrong way.
+
+Unfortunately, the immediate response is to build a data format that
+can be used to define the RelaxNG *as well as* the forms.
+
+It is time to hit myself on the head with a mallet to stop this thought. I
+could try and just as far as I have now, and soon as I get back to this spot,
+I'll be back at the thinking board to figure out another way through.
+
+I've already written my own XML validator. It was a lot of work and 
+I only went through it back in the days when lxml had to be compiled from
+source and I couldn't do that on my old iMac.
+
+So back to the beginning of this.
+
+Elements
+========
+
+Looking at my sample, I have the following uses of ``element`` nodes in
+my RelaxNG definitions:
+
+.. list-table:: Elements
+    :widths: 3 4 3
+    :header-rows: 1
+    
+    * - Children
+      - Child Types
+      - Attributes
+    * - 1
+      - text or data
+      - None
+    * - More than 1
+      - mix of elements
+      - None
+    * - 0
+      - None
+      - At least 1
+      
+ It would appear that I rarely have elements with children 
+ and attributes, although I should be able handle this, right?
+ 
+ I was working with building "card" views instead of "table" views, and
+ that is another distinction I need to make. 
+ 
+ I also need to consider (eventually) partial edits. Looking at 
+ one complex piece of validation I do in another project, I have 5
+ separate externalRef elements. These include non-RelaxNG references,
+ similar to how relational databases tie together.
+ 
+ I will also assume for now that the actual xml data is being handed
+ to the Bottle template as a Python dictionary instead of a custom class
+ or an lxml.objectify element.
+ 
+ Also, RelaxNG is defined by text. This text is parsed into an ``rngNode``
+ and that can be turned into a ``lxml.etree.RelaxNG`` object that does the
+ actual validation. All references to the ``node`` are the parsed node,
+ not the validator.
+ 
+ I'm also going to define two simple functions::
+ 
+    def name(node): 
+        return node.get('name')
+    
+    def parent_name(node):
+        return node.getparent().get('name')
+        
+ Single Child, No Attributes
+ ---------------------------
+ 
+ This covers the simplest of forms::
+ 
+    <element name="name"><text /></element>
+    
+As a field in a card::
+
+    '<p>{{%s["%s"]}}</p>' % (parent_name(node), name(node])
+    
+As a cell in a table::
+
+    '<td>{{%s["%s"]}}</td>' % (parent_name(node), name(node))
+    
+And a digression. It occurs to me that a) there is no difference other
+that the tag, and also only the data itself ending up on the final page.
+There is no field label on the page (as we'll need for a form).
+
+It also occurs to me that RelaxNG ignores elements outside of the RelaxNG
+namespace. This could allow me to bury transformation instructions in the 
+definitions without affecting the validation process.
+
+I also assume that if I'm building an HTML table, I don't need the label.
+If I'm building a card, the label should be optional. If I'm building a
+form, the label is required, but could be before the input field or after it.
+And that would be a site-wide design decision, not a model-to-model decision.
+
+*Note to self: I'm building an xslt definition that turns rng into a
+bottle.py template.*
+
+As an experiment in my XSLTViewMaker.do_element method, I'm going
+to try to do this without my helper functions.
+
+... and that's a useless rabbit hole. The method I need creates a template,
+not HTML. I am not building an RNG->XSLT->XLST->HTML process. I am building
+an RNG->XSLT->tmp->HTML process. Or, in functional terms,
+template(xlst(my_method(rng))) = HTML.
+
+So the next step is to try to use the annotation trick in my rng definition.
+
+This works, and the logic seems easier if I use my secondary namespace
+for attributes on the elements, instead of as children. The addressbook rng::
+
+.. code:: xml
+
+    <?xml version="1.0" ?>
+    <element name="addressBook" xmlns="http://relaxng.org/ns/structure/1.0" xmlns:c="cardview">
+      <zeroOrMore>
+        <element name="card">
+          <element name="name">
+            <text/>
+          </element>
+          <element name="email" c:label="yes">
+            <text/>
+          </element>
+        </element>
+      </zeroOrMore>
+    </element>
+
+Yes, a single word as a namespace works. It's tacky, but it works. 
+The ``do_element`` method now looks like::
+
+    def do_element(self, node):
+     
+        if len(node) > 1:
+            res = ['''<xsl:template match="rng:element[@name='{}']">'''.format(node.get('name'))]
+            res.append('<div class="w3-card">')
+            for child in node.iterchildren():
+                res.extend(self.handle_child(child))
+            res.append('</div>')
+            res.append('</xsl:template>')
+        elif len(node) == 1:
+            label = ''
+            if node.get('{cardview}label', 'no').lower() == 'yes':
+                label = '<span class="label">%s</span>: ' % name(node).title()
+            res = []
+            res.append('<p>%s{{%s["%s"]}}</p>' % (label, parent_name(node), name(node)))          
+        
+        return res
+        
+This makes labels optional when I need them. Other versions of the templatemaker
+can ignore it as appropriate.

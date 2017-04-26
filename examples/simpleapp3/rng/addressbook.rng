@@ -1,11 +1,11 @@
 <?xml version="1.0" ?>
-<element name="addressBook" xmlns="http://relaxng.org/ns/structure/1.0">
+<element name="addressBook" xmlns="http://relaxng.org/ns/structure/1.0" xmlns:c="cardview">
   <zeroOrMore>
     <element name="card">
       <element name="name">
         <text/>
       </element>
-      <element name="email">
+      <element name="email" c:label="yes">
         <text/>
       </element>
     </element>
